@@ -1,7 +1,27 @@
-import Head from 'next/head'
-import styles from './style.module.scss'
+import { RichText } from 'prismic-dom'
 
-export default function Posts() {
+import { GetStaticProps } from 'next'
+import Head from 'next/head'
+
+import * as Prismic from '@prismicio/client'
+
+import { getPrismicClient } from '../../services/prismic'
+
+import styles from './style.module.scss'
+import { detectContentType } from 'next/dist/server/image-optimizer'
+
+type Post = {
+  slug: string
+  title: string
+  excerpt: string
+  updatedAt: string
+}
+
+interface PostsProps {
+  posts: Post[]
+}
+
+export default function Posts({ posts }: PostsProps) {
   return (
     <>
       <Head>
@@ -10,41 +30,47 @@ export default function Posts() {
 
       <main className={styles.container}>
         <div className={styles.posts}>
-          <a href="#">
-            <time>march 8 of 2022</time>
-            <strong>
-              A corrida para o prêmio de MVP da NBA 2021/2022 | Mês 3
-            </strong>
-            <p>
-              Após mais um mês de bola quicando na NBA, o The Playoffs lança a
-              terceira edição da corrida para o prêmio de MVP da temporada
-              2021-22 da NBA.
-            </p>
-          </a>
-          <a href="#">
-            <time>march 8 of 2022</time>
-            <strong>
-              A corrida para o prêmio de MVP da NBA 2021/2022 | Mês 3
-            </strong>
-            <p>
-              Após mais um mês de bola quicando na NBA, o The Playoffs lança a
-              terceira edição da corrida para o prêmio de MVP da temporada
-              2021-22 da NBA.
-            </p>
-          </a>
-          <a href="#">
-            <time>march 8 of 2022</time>
-            <strong>
-              A corrida para o prêmio de MVP da NBA 2021/2022 | Mês 3
-            </strong>
-            <p>
-              Após mais um mês de bola quicando na NBA, o The Playoffs lança a
-              terceira edição da corrida para o prêmio de MVP da temporada
-              2021-22 da NBA.
-            </p>
-          </a>
+          {posts.map((post) => (
+            <a key={post.slug} href="#">
+              <time>{post.updatedAt}</time>
+              <strong>{post.title}</strong>
+              <p>{post.excerpt}</p>
+            </a>
+          ))}
         </div>
       </main>
     </>
   )
+}
+
+export const getStaticProps: GetStaticProps = async () => {
+  const prismic = getPrismicClient()
+
+  const response = await prismic.get({
+    predicates: Prismic.predicate.at('document.type', 'post'),
+    pageSize: 100,
+    fetch: ['post.title', 'post.content'],
+  })
+
+  const posts = response.results.map((post) => {
+    return {
+      slug: post.uid,
+      title: RichText.asText(post.data.title),
+      excerpt:
+        post.data.content.find((content) => content.type === 'paragraph')
+          ?.text ?? '',
+      updatedAt: new Date(post.last_publication_date).toLocaleDateString(
+        'eng-US',
+        {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        }
+      ),
+    }
+  })
+
+  return {
+    props: { posts },
+  }
 }
